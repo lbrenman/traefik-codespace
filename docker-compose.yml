@@ -173,10 +173,10 @@ services:
   # ============================================================
   # GRAFANA — Metrics UI at /grafana via Traefik
   #
-  # GF_SERVER_ROOT_URL tells Grafana to prefix all its internal
-  # links with /grafana so assets load correctly behind Traefik.
-  # strip-prefix-grafana removes /grafana before forwarding so
-  # Grafana receives requests at / as it expects.
+  # GF_SERVER_ROOT_URL + GF_SERVER_SERVE_FROM_SUB_PATH tell Grafana
+  # to serve itself at /grafana and generate correct asset URLs.
+  # Do NOT use strip-prefix — Grafana must receive requests with
+  # the /grafana prefix intact so it can handle the subpath itself.
   # ============================================================
   grafana:
     image: grafana/grafana:latest
@@ -197,5 +197,5 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
       - "traefik.http.routers.grafana.entrypoints=web"
-      - "traefik.http.routers.grafana.middlewares=strip-prefix-grafana@file"
+      # No strip-prefix middleware — Grafana handles /grafana subpath internally
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"

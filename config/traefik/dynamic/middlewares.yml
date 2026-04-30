@@ -59,12 +59,6 @@ http:
       stripPrefix:
         prefixes: ["/whoami"]
 
-    # Grafana needs strip-prefix since it handles the /grafana subpath internally
-    # via GF_SERVER_ROOT_URL — we strip so it receives requests at /
-    strip-prefix-grafana:
-      stripPrefix:
-        prefixes: ["/grafana"]
-
     # =========================================================================
     # RATE LIMITING
     # =========================================================================
