@@ -49,7 +49,8 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`localhost`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
+      # Dashboard: match any host (works in Codespaces and localhost)
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
 
@@ -145,16 +146,7 @@ services:
       - "traefik.http.services.web.loadbalancer.server.port=80"
 
   # ============================================================
-  # PORTAINER — Docker management UI (non-API, browser UI)
-  #
-  # Auth: Portainer's own login (set password on first visit)
-  # Route: http://localhost/portainer/
-  #
-  # Why it's interesting:
-  #   Shows Traefik routing to a complex UI app with its own
-  #   sub-routing and websocket connections — not just a REST API.
-  #   Portainer needs the strip-prefix AND a special header so its
-  #   internal links stay correct behind the /portainer prefix.
+  # PORTAINER — Docker management UI
   # ============================================================
   portainer:
     image: portainer/portainer-ce:latest
@@ -169,15 +161,12 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.portainer.rule=PathPrefix(`/portainer`)"
       - "traefik.http.routers.portainer.entrypoints=web"
-      - "traefik.http.routers.portainer.middlewares=strip-prefix-portainer@file"
-      # Portainer's internal web UI runs on port 9000
+      # Chain: redirect bare /portainer → /portainer/ then strip prefix
+      - "traefik.http.routers.portainer.middlewares=redirect-portainer@file,strip-prefix-portainer@file"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   # ============================================================
-  # PROMETHEUS — Metrics scraper (internal only, feeds Grafana)
-  #
-  # Not exposed via Traefik — only reachable inside traefik-net.
-  # Scrapes metrics from Traefik itself as a demo datasource.
+  # PROMETHEUS — Metrics scraper (internal only)
   # ============================================================
   prometheus:
     image: prom/prometheus:latest
@@ -188,33 +177,19 @@ services:
       - prometheus-data:/prometheus
     networks:
       - traefik-net
-    # No traefik labels — intentionally not exposed externally.
-    # Grafana reaches it internally at http://prometheus:9090
 
   # ============================================================
-  # GRAFANA — Metrics dashboard UI (non-API, browser UI)
-  #
-  # Auth: Grafana's own login (admin / admin — change on first login)
-  # Route: http://localhost/grafana/
-  #
-  # Why it's interesting:
-  #   Grafana must know it's served under a subpath (/grafana/).
-  #   This is configured via GF_SERVER_ROOT_URL and
-  #   GF_SERVER_SERVE_FROM_SUB_PATH — a common real-world challenge
-  #   when putting any UI app behind a reverse proxy subpath.
+  # GRAFANA — Metrics dashboard UI
   # ============================================================
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
     environment:
-      # Tell Grafana it lives at /grafana/ so asset URLs are correct
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
-      # Default credentials (Grafana will prompt to change on first login)
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      # Pre-provision Prometheus as a datasource automatically
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
     volumes:
       - grafana-data:/var/lib/grafana
@@ -225,6 +200,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
       - "traefik.http.routers.grafana.entrypoints=web"
-      - "traefik.http.routers.grafana.middlewares=strip-prefix-grafana@file"
-      # Grafana's internal port
+      # Chain: redirect bare /grafana → /grafana/ then strip prefix
+      - "traefik.http.routers.grafana.middlewares=redirect-grafana@file,strip-prefix-grafana@file"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"

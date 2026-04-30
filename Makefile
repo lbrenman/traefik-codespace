@@ -1,10 +1,18 @@
-.PHONY: up down restart logs ps scale clean health test-auth examples show-keys rawdata help
+.PHONY: up down restart logs ps scale clean health test-auth examples show-keys rawdata env help
 
 -include .env
 export
 
-## Start all services (build first)
-up:
+# Generate .env if missing before any target that needs it
+.env:
+	@bash .devcontainer/setup.sh
+
+## Generate .env with fresh API keys (safe to re-run — won't overwrite existing)
+env:
+	@bash .devcontainer/setup.sh
+
+## Start all services (generates .env if missing, then builds and starts)
+up: .env
 	docker compose up -d --build
 	@echo ""
 	@echo "✅ All services started!"
