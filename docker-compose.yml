@@ -27,7 +27,7 @@ services:
   # TRAEFIK — Reverse proxy + dashboard on :8080
   # ============================================================
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.6
     container_name: traefik
     restart: unless-stopped
     ports:
