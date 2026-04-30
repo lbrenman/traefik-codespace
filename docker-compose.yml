@@ -31,6 +31,10 @@ services:
     image: traefik:v3.1
     container_name: traefik
     restart: unless-stopped
+    environment:
+      # Force Traefik to negotiate a Docker API version compatible
+      # with the Codespaces Docker daemon (requires >= 1.40)
+      - DOCKER_API_VERSION=1.41
     ports:
       - "80:80"
       - "8080:8080"
@@ -43,7 +47,6 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      # Works on any host (localhost or *.app.github.dev)
       - "traefik.http.routers.dashboard.rule=PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
@@ -141,10 +144,8 @@ services:
 
   # ============================================================
   # PORTAINER — Docker management UI
-  #
-  # --base-url /portainer tells Portainer to serve ALL its assets
-  # and API calls under /portainer — no strip-prefix needed.
-  # Traefik just matches the prefix and passes the full path through.
+  # --base-url /portainer tells Portainer to serve all assets
+  # under /portainer so no strip-prefix is needed.
   # ============================================================
   portainer:
     image: portainer/portainer-ce:latest
@@ -160,7 +161,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.portainer.rule=PathPrefix(`/portainer`)"
       - "traefik.http.routers.portainer.entrypoints=web"
-      # No strip-prefix — Portainer handles the /portainer path itself
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   # ============================================================
@@ -178,10 +178,8 @@ services:
 
   # ============================================================
   # GRAFANA — Metrics dashboard UI
-  #
   # GF_SERVER_ROOT_URL + GF_SERVER_SERVE_FROM_SUB_PATH tell Grafana
   # to serve all assets under /grafana — no strip-prefix needed.
-  # Traefik just matches the prefix and passes the full path through.
   # ============================================================
   grafana:
     image: grafana/grafana:latest
@@ -202,5 +200,4 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
       - "traefik.http.routers.grafana.entrypoints=web"
-      # No strip-prefix — Grafana handles the /grafana path itself
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
