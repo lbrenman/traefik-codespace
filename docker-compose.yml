@@ -10,6 +10,11 @@
 #   APIs → strip-prefix middleware (simple REST, no asset linking)
 #   UIs  → app configured to serve at subpath (Portainer --base-url,
 #           Grafana GF_SERVER_SERVE_FROM_SUB_PATH). No strip-prefix.
+#
+# Key Codespaces compatibility note:
+#   The traefik.yml must use endpoint: "unix:///var/run/docker.sock"
+#   with NO 'network' constraint. The Codespaces Docker daemon
+#   (API 1.54) is fully compatible with Traefik's unix socket provider.
 ##############################################################
 
 networks:
@@ -31,10 +36,6 @@ services:
     image: traefik:v3.1
     container_name: traefik
     restart: unless-stopped
-    environment:
-      # Force Traefik to negotiate a Docker API version compatible
-      # with the Codespaces Docker daemon (requires >= 1.40)
-      - DOCKER_API_VERSION=1.41
     ports:
       - "80:80"
       - "8080:8080"
@@ -145,7 +146,7 @@ services:
   # ============================================================
   # PORTAINER — Docker management UI
   # --base-url /portainer tells Portainer to serve all assets
-  # under /portainer so no strip-prefix is needed.
+  # under /portainer — no strip-prefix needed in Traefik.
   # ============================================================
   portainer:
     image: portainer/portainer-ce:latest

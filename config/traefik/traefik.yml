@@ -14,9 +14,6 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    # NOTE: No 'network' constraint here — Traefik v3 can silently drop
-    # container discovery when this is set. Traefik will route to the
-    # correct container IP automatically via the Docker socket.
   file:
     directory: /etc/traefik/dynamic
     watch: true
