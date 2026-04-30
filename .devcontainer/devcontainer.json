@@ -11,30 +11,18 @@
       "version": "20"
     }
   },
-  "forwardPorts": [80, 8080, 3000, 3001, 3002, 8000],
+  "forwardPorts": [80, 8080, 9000],
   "portsAttributes": {
     "80": {
-      "label": "Traefik (HTTP entry point)",
+      "label": "Traefik (APIs + Grafana)",
       "onAutoForward": "notify"
     },
     "8080": {
       "label": "Traefik Dashboard",
       "onAutoForward": "openBrowser"
     },
-    "3000": {
-      "label": "Web App",
-      "onAutoForward": "notify"
-    },
-    "3001": {
-      "label": "API Service 1",
-      "onAutoForward": "notify"
-    },
-    "3002": {
-      "label": "API Service 2",
-      "onAutoForward": "notify"
-    },
-    "8000": {
-      "label": "Whoami Service",
+    "9000": {
+      "label": "Portainer",
       "onAutoForward": "notify"
     }
   },
@@ -45,10 +33,7 @@
         "ms-azuretools.vscode-docker",
         "ms-vscode.makefile-tools",
         "redhat.vscode-yaml"
-      ],
-      "settings": {
-        "editor.formatOnSave": true
-      }
+      ]
     }
   }
 }

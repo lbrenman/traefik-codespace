@@ -1,13 +1,13 @@
 # config/traefik/dynamic/middlewares.yml
-# Dynamic config — hot-reloaded by Traefik when this file changes.
+# Hot-reloaded by Traefik when this file changes.
 
 http:
   middlewares:
 
     # =========================================================================
     # API KEY AUTH via ForwardAuth
+    # Each service has its own middleware pointing to a different ?service= param
     # =========================================================================
-
     auth-api1:
       forwardAuth:
         address: "http://auth-service:9000/auth?service=api1"
@@ -33,7 +33,7 @@ http:
           - "X-Api-Key"
 
     # =========================================================================
-    # DASHBOARD — Basic Auth  (admin / admin123)
+    # DASHBOARD — Basic Auth (admin / admin123)
     # =========================================================================
     dashboard-auth:
       basicAuth:
@@ -41,9 +41,7 @@ http:
           - "admin:$apr1$ryhOsEyM$9hkZirMY2bPXz7MfJcGrq1"
 
     # =========================================================================
-    # PATH STRIP PREFIXES (API services only)
-    # UI services (Portainer, Grafana) do NOT use strip-prefix —
-    # they are configured to serve themselves at their subpath instead.
+    # PATH STRIP PREFIXES — for API services only
     # =========================================================================
     strip-prefix-api1:
       stripPrefix:
@@ -61,6 +59,12 @@ http:
       stripPrefix:
         prefixes: ["/whoami"]
 
+    # Grafana needs strip-prefix since it handles the /grafana subpath internally
+    # via GF_SERVER_ROOT_URL — we strip so it receives requests at /
+    strip-prefix-grafana:
+      stripPrefix:
+        prefixes: ["/grafana"]
+
     # =========================================================================
     # RATE LIMITING
     # =========================================================================
@@ -77,11 +81,3 @@ http:
         frameDeny: true
         browserXssFilter: true
         contentTypeNosniff: true
-
-    # =========================================================================
-    # RETRY
-    # =========================================================================
-    retry:
-      retry:
-        attempts: 3
-        initialInterval: "100ms"

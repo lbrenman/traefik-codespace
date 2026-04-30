@@ -1,20 +1,14 @@
 ##############################################################
 # Traefik Dev Environment — docker-compose.yml
 #
-# Security model:
-#   API services use per-service API key auth via ForwardAuth.
-#   UI services (Portainer, Grafana) use their own built-in auth.
-#   HTTPS is provided automatically by GitHub Codespaces.
+# Routing strategy:
+#   API services  → PathPrefix + strip-prefix + API key auth
+#   Grafana       → PathPrefix /grafana, Grafana handles subpath internally
+#   Portainer     → Exposed directly on port 9000 (subpath not supported)
+#   Traefik dash  → Port 8080 (built-in)
 #
-# Subpath routing strategy:
-#   APIs → strip-prefix middleware (simple REST, no asset linking)
-#   UIs  → app configured to serve at subpath (Portainer --base-url,
-#           Grafana GF_SERVER_SERVE_FROM_SUB_PATH). No strip-prefix.
-#
-# Key Codespaces compatibility note:
-#   The traefik.yml must use endpoint: "unix:///var/run/docker.sock"
-#   with NO 'network' constraint. The Codespaces Docker daemon
-#   (API 1.54) is fully compatible with Traefik's unix socket provider.
+# In GitHub Codespaces, each forwarded port gets its own
+# HTTPS URL automatically — no TLS config needed.
 ##############################################################
 
 networks:
@@ -30,7 +24,7 @@ volumes:
 services:
 
   # ============================================================
-  # TRAEFIK — Reverse proxy
+  # TRAEFIK — Reverse proxy + dashboard on :8080
   # ============================================================
   traefik:
     image: traefik:v3.1
@@ -53,7 +47,7 @@ services:
       - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
 
   # ============================================================
-  # AUTH SERVICE — ForwardAuth API key validator (internal only)
+  # AUTH SERVICE — internal only, never exposed via Traefik
   # ============================================================
   auth-service:
     build:
@@ -68,7 +62,7 @@ services:
       - traefik-net
 
   # ============================================================
-  # WHOAMI — Echo/diagnostic service (API key protected)
+  # WHOAMI — API key protected, path-based
   # ============================================================
   whoami:
     image: traefik/whoami:latest
@@ -84,7 +78,7 @@ services:
       - "traefik.http.services.whoami.loadbalancer.server.port=80"
 
   # ============================================================
-  # API SERVICE 1 — Products API (API key protected)
+  # API 1 — Products, API key protected, path-based
   # ============================================================
   api1:
     build:
@@ -105,7 +99,7 @@ services:
       - "traefik.http.services.api1.loadbalancer.server.port=3001"
 
   # ============================================================
-  # API SERVICE 2 — Users API (API key protected)
+  # API 2 — Users, API key protected, path-based
   # ============================================================
   api2:
     build:
@@ -126,7 +120,7 @@ services:
       - "traefik.http.services.api2.loadbalancer.server.port=3002"
 
   # ============================================================
-  # WEB APP — Static frontend (no auth)
+  # WEB — Static frontend, open, path-based
   # ============================================================
   web:
     build:
@@ -144,28 +138,27 @@ services:
       - "traefik.http.services.web.loadbalancer.server.port=80"
 
   # ============================================================
-  # PORTAINER — Docker management UI
-  # --base-url /portainer tells Portainer to serve all assets
-  # under /portainer — no strip-prefix needed in Traefik.
+  # PORTAINER — Docker UI, exposed directly on port 9000
+  #
+  # Portainer CE does not reliably support subpath routing.
+  # Access via Codespaces port 9000 URL directly.
+  # In Codespaces: open the Ports tab and click the port 9000 URL.
   # ============================================================
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
-    command: --base-url /portainer
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "9000:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - portainer-data:/data
     networks:
       - traefik-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.portainer.rule=PathPrefix(`/portainer`)"
-      - "traefik.http.routers.portainer.entrypoints=web"
-      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   # ============================================================
-  # PROMETHEUS — Metrics scraper (internal only)
+  # PROMETHEUS — internal only, feeds Grafana
   # ============================================================
   prometheus:
     image: prom/prometheus:latest
@@ -178,16 +171,19 @@ services:
       - traefik-net
 
   # ============================================================
-  # GRAFANA — Metrics dashboard UI
-  # GF_SERVER_ROOT_URL + GF_SERVER_SERVE_FROM_SUB_PATH tell Grafana
-  # to serve all assets under /grafana — no strip-prefix needed.
+  # GRAFANA — Metrics UI at /grafana via Traefik
+  #
+  # GF_SERVER_ROOT_URL tells Grafana to prefix all its internal
+  # links with /grafana so assets load correctly behind Traefik.
+  # strip-prefix-grafana removes /grafana before forwarding so
+  # Grafana receives requests at / as it expects.
   # ============================================================
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
     environment:
-      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -201,4 +197,5 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
       - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.routers.grafana.middlewares=strip-prefix-grafana@file"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
