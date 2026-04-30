@@ -2,21 +2,20 @@
 # Traefik Dev Environment — docker-compose.yml
 #
 # Security model:
-#   ALL API traffic passes through Traefik's forwardAuth middleware.
-#   Traefik calls auth-service before allowing any request through.
-#   Each service has a DIFFERENT API key (set in .env).
+#   API services use per-service API key auth via ForwardAuth.
+#   UI services (Portainer, Grafana) use their own built-in auth.
+#   HTTPS is provided automatically by GitHub Codespaces.
 #
 # Services:
-#   traefik       — Reverse proxy + router (dashboard at :8080, basic auth)
+#   traefik       — Reverse proxy + router (dashboard at :8080)
 #   auth-service  — ForwardAuth API key validator (internal only)
-#   whoami        — Echo service (protected by X-Api-Key)
-#   api1          — Products REST API (protected by X-Api-Key)
-#   api2          — Users REST API (protected by X-Api-Key)
-#   web           — Static frontend (open, no auth)
-#
-# Usage:
-#   curl -H "X-Api-Key: $API_KEY_API1" http://localhost/api1/products
-#   curl -H "X-Api-Key: $API_KEY_API2" http://localhost/api2/users
+#   whoami        — Echo service          → /whoami/   (API key)
+#   api1          — Products REST API     → /api1/     (API key)
+#   api2          — Users REST API        → /api2/     (API key)
+#   web           — Static frontend       → /web       (open)
+#   portainer     — Docker UI             → /portainer/ (own auth)
+#   prometheus    — Metrics scraper       (internal only)
+#   grafana       — Dashboards UI         → /grafana/  (own auth)
 ##############################################################
 
 networks:
@@ -25,6 +24,9 @@ networks:
 
 volumes:
   traefik-logs:
+  portainer-data:
+  prometheus-data:
+  grafana-data:
 
 services:
 
@@ -47,14 +49,12 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      # Dashboard router — protected by basic auth
       - "traefik.http.routers.dashboard.rule=Host(`localhost`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
 
   # ============================================================
-  # AUTH SERVICE — ForwardAuth API key validator
-  # Internal only — not reachable from outside the Docker network
+  # AUTH SERVICE — ForwardAuth API key validator (internal only)
   # ============================================================
   auth-service:
     build:
@@ -62,13 +62,11 @@ services:
       dockerfile: Dockerfile
     container_name: auth-service
     restart: unless-stopped
-    env_file: .env          # loads API_KEY_API1, API_KEY_API2, API_KEY_WHOAMI
+    env_file: .env
     environment:
       - PORT=9000
     networks:
       - traefik-net
-    # NOTE: No traefik.enable=true — this service is NEVER exposed externally.
-    # It only receives requests from Traefik internally via the Docker network.
 
   # ============================================================
   # WHOAMI — Echo/diagnostic service (API key protected)
@@ -83,7 +81,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.whoami.rule=PathPrefix(`/whoami`)"
       - "traefik.http.routers.whoami.entrypoints=web"
-      # Chain: auth check → strip prefix → service
       - "traefik.http.routers.whoami.middlewares=auth-whoami@file,strip-prefix-whoami@file"
       - "traefik.http.services.whoami.loadbalancer.server.port=80"
 
@@ -105,7 +102,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.api1.rule=PathPrefix(`/api1`)"
       - "traefik.http.routers.api1.entrypoints=web"
-      # Chain: auth check → rate limit → strip prefix → service
       - "traefik.http.routers.api1.middlewares=auth-api1@file,rate-limit@file,strip-prefix-api1@file"
       - "traefik.http.services.api1.loadbalancer.server.port=3001"
 
@@ -127,12 +123,11 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.api2.rule=PathPrefix(`/api2`)"
       - "traefik.http.routers.api2.entrypoints=web"
-      # Chain: auth check → rate limit → strip prefix → service
       - "traefik.http.routers.api2.middlewares=auth-api2@file,rate-limit@file,strip-prefix-api2@file"
       - "traefik.http.services.api2.loadbalancer.server.port=3002"
 
   # ============================================================
-  # WEB APP — Frontend (no auth — intentionally open)
+  # WEB APP — Static frontend (no auth)
   # ============================================================
   web:
     build:
@@ -148,3 +143,88 @@ services:
       - "traefik.http.routers.web.entrypoints=web"
       - "traefik.http.routers.web.middlewares=strip-prefix-web@file"
       - "traefik.http.services.web.loadbalancer.server.port=80"
+
+  # ============================================================
+  # PORTAINER — Docker management UI (non-API, browser UI)
+  #
+  # Auth: Portainer's own login (set password on first visit)
+  # Route: http://localhost/portainer/
+  #
+  # Why it's interesting:
+  #   Shows Traefik routing to a complex UI app with its own
+  #   sub-routing and websocket connections — not just a REST API.
+  #   Portainer needs the strip-prefix AND a special header so its
+  #   internal links stay correct behind the /portainer prefix.
+  # ============================================================
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer-data:/data
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=PathPrefix(`/portainer`)"
+      - "traefik.http.routers.portainer.entrypoints=web"
+      - "traefik.http.routers.portainer.middlewares=strip-prefix-portainer@file"
+      # Portainer's internal web UI runs on port 9000
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+  # ============================================================
+  # PROMETHEUS — Metrics scraper (internal only, feeds Grafana)
+  #
+  # Not exposed via Traefik — only reachable inside traefik-net.
+  # Scrapes metrics from Traefik itself as a demo datasource.
+  # ============================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - traefik-net
+    # No traefik labels — intentionally not exposed externally.
+    # Grafana reaches it internally at http://prometheus:9090
+
+  # ============================================================
+  # GRAFANA — Metrics dashboard UI (non-API, browser UI)
+  #
+  # Auth: Grafana's own login (admin / admin — change on first login)
+  # Route: http://localhost/grafana/
+  #
+  # Why it's interesting:
+  #   Grafana must know it's served under a subpath (/grafana/).
+  #   This is configured via GF_SERVER_ROOT_URL and
+  #   GF_SERVER_SERVE_FROM_SUB_PATH — a common real-world challenge
+  #   when putting any UI app behind a reverse proxy subpath.
+  # ============================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      # Tell Grafana it lives at /grafana/ so asset URLs are correct
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # Default credentials (Grafana will prompt to change on first login)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Pre-provision Prometheus as a datasource automatically
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.routers.grafana.middlewares=strip-prefix-grafana@file"
+      # Grafana's internal port
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"

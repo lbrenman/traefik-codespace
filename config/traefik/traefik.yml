@@ -1,43 +1,27 @@
 # traefik.yml — Static Configuration
-# This file configures Traefik itself (entry points, providers, logging, dashboard)
+# Note: HTTPS is handled automatically by GitHub Codespaces for all forwarded ports.
+# Traefik only needs to handle plain HTTP internally.
 
-# -------------------------------------------------------------------
-# API & Dashboard
-# -------------------------------------------------------------------
 api:
-  dashboard: true   # Enable the web UI at http://localhost:8080/dashboard/
-  insecure: true    # Allow dashboard without auth (dev only!)
-  debug: true       # Show extra info in the dashboard
+  dashboard: true
+  insecure: true
+  debug: true
 
-# -------------------------------------------------------------------
-# Entry Points
-# Traefik listens on these ports for incoming traffic
-# -------------------------------------------------------------------
 entryPoints:
   web:
-    address: ":80"    # Main HTTP entry point — all services route through here
+    address: ":80"
 
-# -------------------------------------------------------------------
-# Providers
-# Traefik watches these sources for dynamic routing configuration
-# -------------------------------------------------------------------
 providers:
-  # Docker provider: auto-discovers services via container labels
   docker:
     endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false   # Services must opt-in with label traefik.enable=true
-    network: "traefik-net"    # The shared Docker network Traefik uses
-
-  # File provider: load additional dynamic config from a folder
+    exposedByDefault: false
+    network: "traefik-net"
   file:
     directory: /etc/traefik/dynamic
-    watch: true               # Hot-reload when files change
+    watch: true
 
-# -------------------------------------------------------------------
-# Logging
-# -------------------------------------------------------------------
 log:
-  level: DEBUG    # DEBUG | INFO | WARN | ERROR
+  level: DEBUG
 
 accessLog:
   filePath: "/var/log/traefik/access.log"

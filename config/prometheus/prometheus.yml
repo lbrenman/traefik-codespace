@@ -1,0 +1,18 @@
+# Prometheus configuration
+# Scrapes metrics from Traefik (which exposes /metrics on :8080)
+# and from itself. Grafana uses this as its datasource.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: traefik
+    static_configs:
+      # Traefik exposes Prometheus metrics on the dashboard port
+      - targets: ["traefik:8080"]

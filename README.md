@@ -2,7 +2,7 @@
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/lbrenman/traefik-codespace)
 
-A fully working Traefik learning environment with **per-service API key authentication** enforced entirely at the gateway layer — no changes needed to backend services.
+A fully working Traefik learning environment with **per-service API key authentication** and **UI services** — all routed through Traefik, HTTPS handled automatically by GitHub Codespaces.
 
 ---
 
@@ -14,20 +14,18 @@ Client Request
      ▼
  Traefik (:80)
      │
-     │  [forwardAuth middleware]
-     ├──────────────────────────────► auth-service:9000/auth?service=api1
-     │                                   checks X-Api-Key header
-     │                                   ◄── 200 OK  (key valid)
-     │                                   ◄── 401     (key missing/wrong)
+     ├── API routes ──► [forwardAuth] ──► auth-service:9000/auth?service=api1
+     │                                        checks X-Api-Key header
+     │                                        ◄── 200 OK  (key valid)
+     │                                        ◄── 401     (key missing/wrong)
      │
-     │  [strip-prefix middleware]
-     │  [rate-limit middleware]
+     ├── UI routes ───► [strip-prefix] ──► Portainer / Grafana
+     │                                        (own built-in login)
      │
-     ▼
- Backend Service (api1 / api2 / whoami)
+     └── web ─────────► [strip-prefix] ──► Static frontend (open)
 ```
 
-Each service has a **different API key**. Using api2's key on api1 returns 401. The auth-service is **never exposed externally** — it only receives requests from Traefik inside the Docker network.
+API services are protected by per-service API keys enforced at the Traefik layer. UI services use their own built-in authentication. HTTPS is provided automatically by GitHub Codespaces for all forwarded ports.
 
 ---
 
@@ -40,7 +38,10 @@ Each service has a **different API key**. Using api2's key on api1 returns 401. 
 | **whoami** | `/whoami/` | `X-Api-Key` (WHOAMI key) | Echo request headers |
 | **api1** | `/api1/` | `X-Api-Key` (API1 key) | Products REST API |
 | **api2** | `/api2/` | `X-Api-Key` (API2 key) | Users REST API |
-| **web** | `/web` | None (intentionally open) | Frontend UI |
+| **web** | `/web` | None | Static frontend UI |
+| **Portainer** | `/portainer/` | Own login (set on first visit) | Docker container management UI |
+| **prometheus** | internal only | — | Metrics scraper (feeds Grafana) |
+| **Grafana** | `/grafana/` | Own login (admin/admin) | Metrics dashboards UI |
 
 ---
 
@@ -61,6 +62,33 @@ make test-auth
 # See example curl commands with real keys filled in
 make examples
 ```
+
+---
+
+## 🖥️ UI Services
+
+### Portainer — Docker Management UI
+Route: `http://localhost/portainer/`
+
+Portainer gives you a full visual interface for managing your Docker containers, images, volumes, and networks — everything running in this environment. On first visit you'll be prompted to set an admin password.
+
+Behind the scenes, Traefik routes `/portainer/` → Portainer's internal port 9000 using a `strip-prefix` middleware. Portainer is a good example of routing a complex UI app (with WebSocket connections for live log streaming) through Traefik.
+
+### Grafana — Metrics Dashboards
+Route: `http://localhost/grafana/` — login with `admin` / `admin`
+
+Grafana is pre-configured with a Prometheus datasource that automatically scrapes metrics from Traefik. You can explore request rates, response times, and router-level traffic data out of the box.
+
+The key config detail: Grafana must be told it's served under a subpath so its internal asset URLs are correct:
+```yaml
+environment:
+  - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+  - GF_SERVER_SERVE_FROM_SUB_PATH=true
+```
+This is a common real-world challenge with any UI app behind a reverse proxy subpath.
+
+### Prometheus — Metrics Scraper (internal)
+Prometheus is not exposed via Traefik — it's internal only, reachable by Grafana at `http://prometheus:9090`. It scrapes Traefik's built-in `/metrics` endpoint every 15 seconds.
 
 ---
 
@@ -96,9 +124,6 @@ curl -H "X-Api-Key: $API_KEY_API2" http://localhost/api2/users/role/admin
 
 # Whoami
 curl -H "X-Api-Key: $API_KEY_WHOAMI" http://localhost/whoami/
-
-# Web app — no auth required
-curl http://localhost/web
 ```
 
 ### Expected failures
@@ -107,7 +132,7 @@ curl http://localhost/web
 # No key → 401
 curl http://localhost/api1/products
 
-# Wrong key (api2's key used on api1) → 401
+# Wrong key (api2's key on api1) → 401
 curl -H "X-Api-Key: $API_KEY_API2" http://localhost/api1/products
 
 # Garbage key → 401
@@ -116,78 +141,42 @@ curl -H "X-Api-Key: notvalid" http://localhost/api1/products
 
 ---
 
-## 🧠 How the Auth Works (Traefik Concepts)
+## 🧠 Traefik Concepts Illustrated
 
-### ForwardAuth Middleware
-Defined in `config/traefik/dynamic/middlewares.yml`:
-
+### ForwardAuth (API services)
 ```yaml
 auth-api1:
   forwardAuth:
     address: "http://auth-service:9000/auth?service=api1"
-    authRequestHeaders:
-      - "X-Api-Key"           # forward client's key to auth service
-    authResponseHeaders:
-      - "X-Authenticated-Service"  # pass validated service name downstream
+    authRequestHeaders: ["X-Api-Key"]
+    authResponseHeaders: ["X-Authenticated-Service"]
 ```
 
-Applied on the router via Docker label:
+### Strip Prefix (UI services)
 ```yaml
-labels:
-  - "traefik.http.routers.api1.middlewares=auth-api1@file,rate-limit@file,strip-prefix-api1@file"
+strip-prefix-grafana:
+  stripPrefix:
+    prefixes: ["/grafana"]
 ```
 
-### Middleware Chain (order matters)
+### Middleware chains (order matters)
 ```
-auth-api1  →  rate-limit  →  strip-prefix-api1  →  backend
-  (check)      (throttle)     (remove /api1)        (api1:3001)
+# API route:  auth → rate-limit → strip-prefix → backend
+# UI route:   strip-prefix → backend
+# Web route:  strip-prefix → backend
 ```
 
 ### Adding a New Protected Service
 1. Add `API_KEY_MYNEWSERVICE=<key>` to `.env`
-2. Add a middleware in `middlewares.yml`:
+2. Add middleware in `config/traefik/dynamic/middlewares.yml`:
    ```yaml
    auth-mynewservice:
      forwardAuth:
        address: "http://auth-service:9000/auth?service=mynewservice"
        authRequestHeaders: ["X-Api-Key"]
    ```
-3. Add labels to the new service in `docker-compose.yml`:
-   ```yaml
-   labels:
-     - "traefik.http.routers.mynew.middlewares=auth-mynewservice@file,strip-prefix-mynew@file"
-   ```
-4. `docker compose up -d` — Traefik hot-reloads instantly.
-
----
-
-## 🔬 Auth Experiments to Try
-
-### Watch auth decisions in real time
-```bash
-make auth-logs
-# then in another terminal: make test-auth
-```
-
-### Rotate a key without downtime
-1. Update `API_KEY_API1` in `.env`
-2. `docker compose up -d auth-service` — only restarts auth-service
-3. Old key immediately rejected, new key accepted
-
-### See what Traefik sees
-```bash
-# Raw router/middleware config
-make rawdata
-# Check the api1 router middlewares array
-```
-
-### Intentionally break auth (then fix it)
-```bash
-# Set a bad auth service address (simulate outage)
-# Edit middlewares.yml → address: "http://auth-service:9999/auth?service=api1"
-# All api1 requests will return 500 (fail-closed) ← this is the safe behavior
-# Restore the correct address → auto hot-reloaded
-```
+3. Add Docker labels to the service in `docker-compose.yml`
+4. `docker compose up -d` — Traefik hot-reloads, no restart needed
 
 ---
 
@@ -198,20 +187,24 @@ traefik-codespace/
 ├── .devcontainer/
 │   ├── devcontainer.json
 │   └── setup.sh
-├── config/traefik/
-│   ├── traefik.yml                  # Static config
-│   └── dynamic/
-│       └── middlewares.yml          # Auth + other middlewares (hot-reloaded)
+├── config/
+│   ├── traefik/
+│   │   ├── traefik.yml               # Static config (entry points, providers)
+│   │   └── dynamic/
+│   │       └── middlewares.yml       # All middlewares — hot-reloaded
+│   ├── prometheus/
+│   │   └── prometheus.yml            # Scrape config (Traefik metrics)
+│   └── grafana/
+│       └── provisioning/
+│           ├── datasources/          # Auto-provisions Prometheus datasource
+│           └── dashboards/           # Dashboard provider config
 ├── services/
-│   ├── auth-service/                # ForwardAuth API key validator
-│   │   ├── index.js                 # GET /auth?service=<name>
-│   │   ├── package.json
-│   │   └── Dockerfile
-│   ├── api1/                        # Products API
-│   ├── api2/                        # Users API
-│   └── web/                         # Frontend
-├── .env                             # API keys (gitignore this in production!)
-├── .env.example                     # Template for .env
+│   ├── auth-service/                 # ForwardAuth API key validator
+│   ├── api1/                         # Products REST API
+│   ├── api2/                         # Users REST API
+│   └── web/                          # Static frontend
+├── .env                              # API keys (never commit this!)
+├── .env.example                      # Template
 ├── docker-compose.yml
 ├── docker-compose.scale.yml
 ├── Makefile
@@ -231,10 +224,10 @@ make examples      # Print curl commands with real keys
 make auth-logs     # Tail auth service logs (live allow/deny decisions)
 make traefik-logs  # Tail Traefik logs
 make ps            # Show running containers
-make scale         # Scale api1 to 3 replicas
+make scale         # Scale api1 to 3 replicas (load balancing demo)
 make health        # Auth service health check
 make rawdata       # Dump Traefik routing config JSON
-make clean         # Remove everything
+make clean         # Remove everything (containers + volumes)
 ```
 
 ---
@@ -245,3 +238,6 @@ make clean         # Remove everything
 - [Traefik BasicAuth](https://doc.traefik.io/traefik/middlewares/http/basicauth/)
 - [Middleware Chaining](https://doc.traefik.io/traefik/routing/routers/#middlewares)
 - [Dynamic Configuration](https://doc.traefik.io/traefik/providers/file/)
+- [Portainer](https://docs.portainer.io/)
+- [Grafana](https://grafana.com/docs/)
+- [Prometheus](https://prometheus.io/docs/)

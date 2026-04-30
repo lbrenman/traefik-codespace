@@ -1,6 +1,5 @@
-.PHONY: up down restart logs ps scale clean health test-auth test-denied rawdata help
+.PHONY: up down restart logs ps scale clean health test-auth examples show-keys rawdata help
 
-# Load API keys from .env for use in make targets
 -include .env
 export
 
@@ -10,14 +9,18 @@ up:
 	@echo ""
 	@echo "✅ All services started!"
 	@echo ""
-	@echo "   🔓 Open (no auth):"
+	@echo "   🔓 Open (no auth required):"
 	@echo "      Web App         → http://localhost/web"
 	@echo "      Traefik Dash    → http://localhost:8080/dashboard/  (admin/admin123)"
 	@echo ""
-	@echo "   🔐 Protected (require X-Api-Key header):"
+	@echo "   🔐 Protected APIs (require X-Api-Key header):"
 	@echo "      Whoami          → http://localhost/whoami/"
 	@echo "      Products API    → http://localhost/api1/products"
 	@echo "      Users API       → http://localhost/api2/users"
+	@echo ""
+	@echo "   🖥️  UI Services (own built-in login):"
+	@echo "      Portainer       → http://localhost/portainer/  (set password on first visit)"
+	@echo "      Grafana         → http://localhost/grafana/    (admin/admin)"
 	@echo ""
 	@echo "   Run 'make show-keys' to print the API keys"
 	@echo "   Run 'make test-auth' to verify auth is working"
@@ -30,11 +33,11 @@ down:
 restart:
 	docker compose restart
 
-## Tail logs (all services)
+## Tail logs for all services
 logs:
 	docker compose logs -f
 
-## Tail auth service logs only (shows every allow/deny decision)
+## Tail auth service logs (shows every allow/deny decision)
 auth-logs:
 	docker compose logs -f auth-service
 
@@ -42,7 +45,7 @@ auth-logs:
 traefik-logs:
 	docker compose logs -f traefik
 
-## Show running containers and status
+## Show running containers
 ps:
 	docker compose ps
 
@@ -75,37 +78,31 @@ test-auth:
 	@echo ""
 	@echo "[api1] GET /api1/health with correct key:"
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" -H "X-Api-Key: ${API_KEY_API1}" http://localhost/api1/health
-	@echo ""
 	@echo "[api2] GET /api2/health with correct key:"
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" -H "X-Api-Key: ${API_KEY_API2}" http://localhost/api2/health
-	@echo ""
 	@echo "[whoami] GET /whoami/ with correct key:"
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" -H "X-Api-Key: ${API_KEY_WHOAMI}" http://localhost/whoami/
 	@echo ""
-	@echo "--- 🚫 Should return 401 (wrong key) ---"
+	@echo "--- 🚫 Should return 401 (wrong/missing key) ---"
 	@echo ""
-	@echo "[api1] GET /api1/health with api2's key (wrong):"
+	@echo "[api1] GET /api1/health with api2's key (wrong service key):"
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" -H "X-Api-Key: ${API_KEY_API2}" http://localhost/api1/health
-	@echo ""
 	@echo "[api2] GET /api2/health with no key:"
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost/api2/health
-	@echo ""
 	@echo "[api1] GET /api1/health with garbage key:"
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" -H "X-Api-Key: notavalidkey" http://localhost/api1/health
 	@echo ""
-	@echo "--- ✅ Web should return 200 (no auth needed) ---"
+	@echo "--- ✅ UI services and web should return 200 (no API key) ---"
 	@echo ""
-	@echo "[web] GET /web (no key):"
+	@echo "[web] GET /web:"
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost/web
+	@echo "[portainer] GET /portainer/:"
+	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost/portainer/
+	@echo "[grafana] GET /grafana/:"
+	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost/grafana/
 	@echo ""
 
-## Quick health check of auth service itself
-health:
-	@curl -s http://localhost:9000/health 2>/dev/null | python3 -m json.tool || \
-	 echo "(auth-service not directly exposed — check via docker exec)"
-	@docker exec auth-service wget -qO- http://localhost:9000/health 2>/dev/null | python3 -m json.tool
-
-## Print example curl commands with the real keys
+## Print example curl commands with real keys
 examples:
 	@echo ""
 	@echo "📋 Example curl commands:"
@@ -124,9 +121,15 @@ examples:
 	@echo "  # Whoami"
 	@echo "  curl -H 'X-Api-Key: ${API_KEY_WHOAMI}' http://localhost/whoami/"
 	@echo ""
-	@echo "  # No auth on web"
+	@echo "  # No auth on web, Portainer, Grafana"
 	@echo "  curl http://localhost/web"
+	@echo "  open http://localhost/portainer/"
+	@echo "  open http://localhost/grafana/"
 	@echo ""
+
+## Auth service health check
+health:
+	@docker exec auth-service wget -qO- http://localhost:9000/health 2>/dev/null | python3 -m json.tool
 
 ## Dump raw Traefik routing config
 rawdata:

@@ -95,3 +95,11 @@ http:
       retry:
         attempts: 3
         initialInterval: "100ms"
+
+    strip-prefix-portainer:
+      stripPrefix:
+        prefixes: ["/portainer"]
+
+    strip-prefix-grafana:
+      stripPrefix:
+        prefixes: ["/grafana"]
