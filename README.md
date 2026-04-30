@@ -1,5 +1,7 @@
 # 🚦 Traefik Dev Environment — GitHub Codespaces
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/lbrenman/traefik-codespace)
+
 A fully working Traefik learning environment with **per-service API key authentication** enforced entirely at the gateway layer — no changes needed to backend services.
 
 ---
@@ -209,6 +211,7 @@ traefik-codespace/
 │   ├── api2/                        # Users API
 │   └── web/                         # Frontend
 ├── .env                             # API keys (gitignore this in production!)
+├── .env.example                     # Template for .env
 ├── docker-compose.yml
 ├── docker-compose.scale.yml
 ├── Makefile
