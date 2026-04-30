@@ -1,6 +1,5 @@
 # traefik.yml — Static Configuration
 # Note: HTTPS is handled automatically by GitHub Codespaces for all forwarded ports.
-# Traefik only needs to handle plain HTTP internally.
 
 api:
   dashboard: true
@@ -15,7 +14,9 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: "traefik-net"
+    # NOTE: No 'network' constraint here — Traefik v3 can silently drop
+    # container discovery when this is set. Traefik will route to the
+    # correct container IP automatically via the Docker socket.
   file:
     directory: /etc/traefik/dynamic
     watch: true
