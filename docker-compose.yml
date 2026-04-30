@@ -6,16 +6,10 @@
 #   UI services (Portainer, Grafana) use their own built-in auth.
 #   HTTPS is provided automatically by GitHub Codespaces.
 #
-# Services:
-#   traefik       — Reverse proxy + router (dashboard at :8080)
-#   auth-service  — ForwardAuth API key validator (internal only)
-#   whoami        — Echo service          → /whoami/   (API key)
-#   api1          — Products REST API     → /api1/     (API key)
-#   api2          — Users REST API        → /api2/     (API key)
-#   web           — Static frontend       → /web       (open)
-#   portainer     — Docker UI             → /portainer/ (own auth)
-#   prometheus    — Metrics scraper       (internal only)
-#   grafana       — Dashboards UI         → /grafana/  (own auth)
+# Subpath routing strategy:
+#   APIs → strip-prefix middleware (simple REST, no asset linking)
+#   UIs  → app configured to serve at subpath (Portainer --base-url,
+#           Grafana GF_SERVER_SERVE_FROM_SUB_PATH). No strip-prefix.
 ##############################################################
 
 networks:
@@ -49,7 +43,7 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      # Dashboard: match any host (works in Codespaces and localhost)
+      # Works on any host (localhost or *.app.github.dev)
       - "traefik.http.routers.dashboard.rule=PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
@@ -147,11 +141,16 @@ services:
 
   # ============================================================
   # PORTAINER — Docker management UI
+  #
+  # --base-url /portainer tells Portainer to serve ALL its assets
+  # and API calls under /portainer — no strip-prefix needed.
+  # Traefik just matches the prefix and passes the full path through.
   # ============================================================
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
+    command: --base-url /portainer
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - portainer-data:/data
@@ -161,8 +160,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.portainer.rule=PathPrefix(`/portainer`)"
       - "traefik.http.routers.portainer.entrypoints=web"
-      # Chain: redirect bare /portainer → /portainer/ then strip prefix
-      - "traefik.http.routers.portainer.middlewares=redirect-portainer@file,strip-prefix-portainer@file"
+      # No strip-prefix — Portainer handles the /portainer path itself
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   # ============================================================
@@ -180,6 +178,10 @@ services:
 
   # ============================================================
   # GRAFANA — Metrics dashboard UI
+  #
+  # GF_SERVER_ROOT_URL + GF_SERVER_SERVE_FROM_SUB_PATH tell Grafana
+  # to serve all assets under /grafana — no strip-prefix needed.
+  # Traefik just matches the prefix and passes the full path through.
   # ============================================================
   grafana:
     image: grafana/grafana:latest
@@ -200,6 +202,5 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
       - "traefik.http.routers.grafana.entrypoints=web"
-      # Chain: redirect bare /grafana → /grafana/ then strip prefix
-      - "traefik.http.routers.grafana.middlewares=redirect-grafana@file,strip-prefix-grafana@file"
+      # No strip-prefix — Grafana handles the /grafana path itself
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"

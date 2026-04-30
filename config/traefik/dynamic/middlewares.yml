@@ -41,24 +41,9 @@ http:
           - "admin:$apr1$ryhOsEyM$9hkZirMY2bPXz7MfJcGrq1"
 
     # =========================================================================
-    # TRAILING SLASH REDIRECTS
-    # Redirects /portainer → /portainer/ and /grafana → /grafana/
-    # Required because both UIs expect to be served from a path ending in /
-    # =========================================================================
-    redirect-portainer:
-      redirectRegex:
-        regex: "^(https?://[^/]+/portainer)$"
-        replacement: "${1}/"
-        permanent: false
-
-    redirect-grafana:
-      redirectRegex:
-        regex: "^(https?://[^/]+/grafana)$"
-        replacement: "${1}/"
-        permanent: false
-
-    # =========================================================================
-    # PATH STRIP PREFIXES
+    # PATH STRIP PREFIXES (API services only)
+    # UI services (Portainer, Grafana) do NOT use strip-prefix —
+    # they are configured to serve themselves at their subpath instead.
     # =========================================================================
     strip-prefix-api1:
       stripPrefix:
@@ -75,14 +60,6 @@ http:
     strip-prefix-whoami:
       stripPrefix:
         prefixes: ["/whoami"]
-
-    strip-prefix-portainer:
-      stripPrefix:
-        prefixes: ["/portainer"]
-
-    strip-prefix-grafana:
-      stripPrefix:
-        prefixes: ["/grafana"]
 
     # =========================================================================
     # RATE LIMITING
