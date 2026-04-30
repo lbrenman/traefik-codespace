@@ -1,0 +1,150 @@
+##############################################################
+# Traefik Dev Environment — docker-compose.yml
+#
+# Security model:
+#   ALL API traffic passes through Traefik's forwardAuth middleware.
+#   Traefik calls auth-service before allowing any request through.
+#   Each service has a DIFFERENT API key (set in .env).
+#
+# Services:
+#   traefik       — Reverse proxy + router (dashboard at :8080, basic auth)
+#   auth-service  — ForwardAuth API key validator (internal only)
+#   whoami        — Echo service (protected by X-Api-Key)
+#   api1          — Products REST API (protected by X-Api-Key)
+#   api2          — Users REST API (protected by X-Api-Key)
+#   web           — Static frontend (open, no auth)
+#
+# Usage:
+#   curl -H "X-Api-Key: $API_KEY_API1" http://localhost/api1/products
+#   curl -H "X-Api-Key: $API_KEY_API2" http://localhost/api2/users
+##############################################################
+
+networks:
+  traefik-net:
+    name: traefik-net
+
+volumes:
+  traefik-logs:
+
+services:
+
+  # ============================================================
+  # TRAEFIK — Reverse proxy
+  # ============================================================
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./config/traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik-logs:/var/log/traefik
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      # Dashboard router — protected by basic auth
+      - "traefik.http.routers.dashboard.rule=Host(`localhost`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
+
+  # ============================================================
+  # AUTH SERVICE — ForwardAuth API key validator
+  # Internal only — not reachable from outside the Docker network
+  # ============================================================
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    restart: unless-stopped
+    env_file: .env          # loads API_KEY_API1, API_KEY_API2, API_KEY_WHOAMI
+    environment:
+      - PORT=9000
+    networks:
+      - traefik-net
+    # NOTE: No traefik.enable=true — this service is NEVER exposed externally.
+    # It only receives requests from Traefik internally via the Docker network.
+
+  # ============================================================
+  # WHOAMI — Echo/diagnostic service (API key protected)
+  # ============================================================
+  whoami:
+    image: traefik/whoami:latest
+    container_name: whoami
+    restart: unless-stopped
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=PathPrefix(`/whoami`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      # Chain: auth check → strip prefix → service
+      - "traefik.http.routers.whoami.middlewares=auth-whoami@file,strip-prefix-whoami@file"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+
+  # ============================================================
+  # API SERVICE 1 — Products API (API key protected)
+  # ============================================================
+  api1:
+    build:
+      context: ./services/api1
+      dockerfile: Dockerfile
+    container_name: api1
+    restart: unless-stopped
+    environment:
+      - SERVICE_NAME=API Service 1 (Products)
+      - PORT=3001
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api1.rule=PathPrefix(`/api1`)"
+      - "traefik.http.routers.api1.entrypoints=web"
+      # Chain: auth check → rate limit → strip prefix → service
+      - "traefik.http.routers.api1.middlewares=auth-api1@file,rate-limit@file,strip-prefix-api1@file"
+      - "traefik.http.services.api1.loadbalancer.server.port=3001"
+
+  # ============================================================
+  # API SERVICE 2 — Users API (API key protected)
+  # ============================================================
+  api2:
+    build:
+      context: ./services/api2
+      dockerfile: Dockerfile
+    container_name: api2
+    restart: unless-stopped
+    environment:
+      - SERVICE_NAME=API Service 2 (Users)
+      - PORT=3002
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api2.rule=PathPrefix(`/api2`)"
+      - "traefik.http.routers.api2.entrypoints=web"
+      # Chain: auth check → rate limit → strip prefix → service
+      - "traefik.http.routers.api2.middlewares=auth-api2@file,rate-limit@file,strip-prefix-api2@file"
+      - "traefik.http.services.api2.loadbalancer.server.port=3002"
+
+  # ============================================================
+  # WEB APP — Frontend (no auth — intentionally open)
+  # ============================================================
+  web:
+    build:
+      context: ./services/web
+      dockerfile: Dockerfile
+    container_name: web
+    restart: unless-stopped
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=PathPrefix(`/web`)"
+      - "traefik.http.routers.web.entrypoints=web"
+      - "traefik.http.routers.web.middlewares=strip-prefix-web@file"
+      - "traefik.http.services.web.loadbalancer.server.port=80"

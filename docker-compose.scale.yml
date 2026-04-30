@@ -1,0 +1,19 @@
+##############################################################
+# Scale Demo — docker-compose.scale.yml
+#
+# Use this to spin up multiple replicas of api1 and see Traefik
+# automatically load-balance across them in round-robin.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale api1=3
+#
+# Then hit /api1/ multiple times and watch the X-Served-By header
+# (and Traefik dashboard) show traffic distributed across instances.
+##############################################################
+
+services:
+  api1:
+    # Remove fixed container_name so Docker can create api1_1, api1_2, api1_3
+    container_name: !reset null
+    deploy:
+      replicas: 3

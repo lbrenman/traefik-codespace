@@ -1,0 +1,97 @@
+# config/traefik/dynamic/middlewares.yml
+# Dynamic config — hot-reloaded by Traefik when this file changes.
+
+http:
+  middlewares:
+
+    # =========================================================================
+    # API KEY AUTH via ForwardAuth
+    #
+    # How it works:
+    #   1. Client sends request to e.g. /api1/products with header X-Api-Key: <key>
+    #   2. Traefik intercepts and calls auth-service GET /auth?service=api1
+    #      forwarding the X-Api-Key header along with it
+    #   3. auth-service checks X-Api-Key against the key for that service
+    #   4. 200 → Traefik forwards request to the real service
+    #      401 → Traefik returns 401 to the client immediately
+    #
+    # Per-service isolation:
+    #   Each middleware has a different ?service= query param so the auth service
+    #   knows which API key to validate against.
+    # =========================================================================
+
+    auth-api1:
+      forwardAuth:
+        address: "http://auth-service:9000/auth?service=api1"
+        authResponseHeaders:
+          - "X-Authenticated-Service"
+        authRequestHeaders:
+          - "X-Api-Key"
+
+    auth-api2:
+      forwardAuth:
+        address: "http://auth-service:9000/auth?service=api2"
+        authResponseHeaders:
+          - "X-Authenticated-Service"
+        authRequestHeaders:
+          - "X-Api-Key"
+
+    auth-whoami:
+      forwardAuth:
+        address: "http://auth-service:9000/auth?service=whoami"
+        authResponseHeaders:
+          - "X-Authenticated-Service"
+        authRequestHeaders:
+          - "X-Api-Key"
+
+    # =========================================================================
+    # DASHBOARD — Basic Auth  (admin / admin123)
+    # =========================================================================
+    dashboard-auth:
+      basicAuth:
+        users:
+          - "admin:$apr1$ryhOsEyM$9hkZirMY2bPXz7MfJcGrq1"
+
+    # =========================================================================
+    # PATH STRIP PREFIXES
+    # =========================================================================
+    strip-prefix-api1:
+      stripPrefix:
+        prefixes: ["/api1"]
+
+    strip-prefix-api2:
+      stripPrefix:
+        prefixes: ["/api2"]
+
+    strip-prefix-web:
+      stripPrefix:
+        prefixes: ["/web"]
+
+    strip-prefix-whoami:
+      stripPrefix:
+        prefixes: ["/whoami"]
+
+    # =========================================================================
+    # RATE LIMITING
+    # =========================================================================
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+
+    # =========================================================================
+    # SECURITY HEADERS
+    # =========================================================================
+    secure-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+
+    # =========================================================================
+    # RETRY
+    # =========================================================================
+    retry:
+      retry:
+        attempts: 3
+        initialInterval: "100ms"

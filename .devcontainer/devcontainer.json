@@ -1,0 +1,54 @@
+{
+  "name": "Traefik Dev Environment",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "forwardPorts": [80, 8080, 3000, 3001, 3002, 8000],
+  "portsAttributes": {
+    "80": {
+      "label": "Traefik (HTTP entry point)",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Traefik Dashboard",
+      "onAutoForward": "openBrowser"
+    },
+    "3000": {
+      "label": "Web App",
+      "onAutoForward": "notify"
+    },
+    "3001": {
+      "label": "API Service 1",
+      "onAutoForward": "notify"
+    },
+    "3002": {
+      "label": "API Service 2",
+      "onAutoForward": "notify"
+    },
+    "8000": {
+      "label": "Whoami Service",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.makefile-tools",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "editor.formatOnSave": true
+      }
+    }
+  }
+}

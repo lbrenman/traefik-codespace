@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Traefik Dev Environment</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    header h1 {
+      font-size: 2.2rem;
+      background: linear-gradient(90deg, #00b4d8, #0077b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+    header p { color: #94a3b8; font-size: 1rem; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #0077b6;
+      color: white;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto 2.5rem auto;
+    }
+    .card {
+      background: #1e2433;
+      border-radius: 12px;
+      border: 1px solid #2d3748;
+      padding: 1.5rem;
+    }
+    .card h2 { font-size: 1.1rem; margin-bottom: 0.3rem; color: #63b3ed; }
+    .card p  { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1rem; }
+    .route-badge {
+      display: inline-block;
+      background: #2d3748;
+      border-radius: 6px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.8rem;
+      font-family: monospace;
+      color: #a78bfa;
+      margin-bottom: 1rem;
+    }
+    .endpoints { list-style: none; }
+    .endpoints li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid #2d3748;
+      font-size: 0.82rem;
+    }
+    .endpoints li:last-child { border-bottom: none; }
+    .method {
+      font-family: monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      min-width: 44px;
+      text-align: center;
+    }
+    .GET    { background: #1a5276; color: #85c1e9; }
+    .POST   { background: #1e8449; color: #82e0aa; }
+    .PUT    { background: #784212; color: #f0b27a; }
+    .DELETE { background: #7b241c; color: #f1948a; }
+    .path   { font-family: monospace; color: #e2e8f0; }
+    .explorer {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #1e2433;
+      border-radius: 12px;
+      border: 1px solid #2d3748;
+      padding: 1.5rem;
+    }
+    .explorer h2 { color: #63b3ed; margin-bottom: 1rem; }
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    select, input {
+      background: #0f1117;
+      border: 1px solid #4a5568;
+      color: #e2e8f0;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    input { flex: 1; min-width: 200px; }
+    button {
+      background: #0077b6;
+      color: white;
+      border: none;
+      padding: 0.45rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: #005f8f; }
+    #response {
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      min-height: 120px;
+      border: 1px solid #2d3748;
+      color: #a3e635;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .links {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 2rem;
+      flex-wrap: wrap;
+    }
+    .links a {
+      color: #63b3ed;
+      text-decoration: none;
+      font-size: 0.9rem;
+      padding: 0.4rem 0.9rem;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+    }
+    .links a:hover { background: #2d3748; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🚦 Traefik Dev Environment</h1>
+    <p>All traffic below is routed through <strong>Traefik</strong> via Docker label auto-discovery</p>
+  </header>
+
+  <div class="services-grid">
+
+    <div class="card">
+      <h2>Whoami Service <span class="badge">auto-discovered</span></h2>
+      <p>Echoes HTTP request headers & connection info — great for debugging routing.</p>
+      <div class="route-badge">Traefik route: /whoami/*</div>
+      <ul class="endpoints">
+        <li><span class="method GET">GET</span> <span class="path">/whoami/</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Products API <span class="badge">auto-discovered</span></h2>
+      <p>RESTful Products API — Node.js/Express, auto-routed by Traefik with strip-prefix + rate limiting.</p>
+      <div class="route-badge">Traefik route: /api1/*</div>
+      <ul class="endpoints">
+        <li><span class="method GET">GET</span>    <span class="path">/api1/products</span></li>
+        <li><span class="method GET">GET</span>    <span class="path">/api1/products/:id</span></li>
+        <li><span class="method POST">POST</span>  <span class="path">/api1/products</span></li>
+        <li><span class="method PUT">PUT</span>    <span class="path">/api1/products/:id</span></li>
+        <li><span class="method DELETE">DELETE</span><span class="path">/api1/products/:id</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Users API <span class="badge">auto-discovered</span></h2>
+      <p>RESTful Users API — Node.js/Express, auto-routed by Traefik with strip-prefix + rate limiting.</p>
+      <div class="route-badge">Traefik route: /api2/*</div>
+      <ul class="endpoints">
+        <li><span class="method GET">GET</span>    <span class="path">/api2/users</span></li>
+        <li><span class="method GET">GET</span>    <span class="path">/api2/users/:id</span></li>
+        <li><span class="method GET">GET</span>    <span class="path">/api2/users/role/:role</span></li>
+        <li><span class="method POST">POST</span>  <span class="path">/api2/users</span></li>
+        <li><span class="method PUT">PUT</span>    <span class="path">/api2/users/:id</span></li>
+        <li><span class="method DELETE">DELETE</span><span class="path">/api2/users/:id</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Traefik Dashboard <span class="badge">live</span></h2>
+      <p>View all auto-discovered routers, services, and middlewares in real time.</p>
+      <div class="route-badge">http://localhost:8080/dashboard/</div>
+      <ul class="endpoints">
+        <li><span class="method GET">GET</span> <span class="path">/dashboard/ — Visual UI</span></li>
+        <li><span class="method GET">GET</span> <span class="path">/api/rawdata — Raw config JSON</span></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="explorer">
+    <h2>🔬 Live API Explorer</h2>
+    <div class="controls">
+      <select id="method">
+        <option>GET</option>
+        <option>POST</option>
+        <option>PUT</option>
+        <option>DELETE</option>
+      </select>
+      <input id="url" type="text" value="/whoami/" placeholder="Path e.g. /api1/products" />
+      <button onclick="sendRequest()">Send</button>
+    </div>
+    <div id="response">Response will appear here…</div>
+  </div>
+
+  <div class="links">
+    <a href="/whoami/" target="_blank">Whoami ↗</a>
+    <a href="/api1/" target="_blank">API 1 Info ↗</a>
+    <a href="/api1/products" target="_blank">Products ↗</a>
+    <a href="/api2/" target="_blank">API 2 Info ↗</a>
+    <a href="/api2/users" target="_blank">Users ↗</a>
+    <a href="http://localhost:8080/dashboard/" target="_blank">Traefik Dashboard ↗</a>
+  </div>
+
+  <script>
+    async function sendRequest() {
+      const method = document.getElementById('method').value;
+      const url    = document.getElementById('url').value;
+      const out    = document.getElementById('response');
+      out.textContent = '⏳ Sending…';
+      try {
+        const res  = await fetch(url, { method });
+        const text = await res.text();
+        let body;
+        try { body = JSON.stringify(JSON.parse(text), null, 2); }
+        catch { body = text; }
+        out.textContent = `HTTP ${res.status} ${res.statusText}\n\n${body}`;
+      } catch (e) {
+        out.textContent = `❌ Error: ${e.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
