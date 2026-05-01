@@ -71,6 +71,16 @@ curl -H "X-Api-Key: $API_KEY_API2" http://localhost/api1/products
 make test-auth
 ```
 
+### Example Curl Commands
+
+```bash
+curl -H "X-Api-Key: e5bef915de9ddfa6a07a902c7d150db8bc301d846be9841f" https://symmetrical-barnacle-6p44gx5wwvrhxv6w-80.app.github.dev/api1/products
+
+curl -H "X-Api-Key: 4d242c390f788a66b6ff1e10eb0538203e1a029e9bae63b2" https://symmetrical-barnacle-6p44gx5wwvrhxv6w-80.app.github.dev/api2/users
+
+curl -H "X-Api-Key: 1f4465c5e3d5e2cc3503eea3d986ac1e430de440d8a37dca" https://symmetrical-barnacle-6p44gx5wwvrhxv6w-80.app.github.dev/whoami
+```
+
 ---
 
 ## 🖥️ UI Services
@@ -81,6 +91,26 @@ Access via the port 80 Codespaces URL + `/grafana/`. Login: `admin` / `admin`.
 Pre-provisioned with Prometheus as a datasource. Go to **Explore** and query `traefik_http_requests_total` to see live Traefik traffic metrics.
 
 **Note:** `GF_SERVER_ROOT_URL` is set automatically to your Codespace URL by `setup.sh`. If you recreate the Codespace, the URL updates automatically.
+
+#### Query
+
+Select and Hit Run query and you'll see daya
+
+traefik_router_requests_total
+traefik_router_request_duration_seconds_bucket — response time histogram
+traefik_service_requests_total — by service
+traefik_entrypoint_requests_total — total traffic through port 80
+
+#### Dashboard
+
+* Click Dashboards in the left sidebar
+* Click the New button (top right) → Import
+* In the "Find and import dashboards" field, type 17347
+* Click Load
+* On the next screen, select Prometheus from the datasource dropdown
+* Click Import
+
+You'll get a full pre-built dashboard with request rates, response times, error rates, and per-router breakdowns — all using the correct Traefik v3 metric names.
 
 ### Portainer — port 9000
 Access via the port 9000 Codespaces URL. Set admin password on first visit.
