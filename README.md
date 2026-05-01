@@ -32,6 +32,13 @@ Open the **Ports** tab in VS Code to find the forwarded URLs for each port. Make
 
 > In Codespaces: find each port's HTTPS URL in VS Code's **Ports** tab.
 
+### Examples
+
+* Traefik Dashboard - https://congenial-umbrella-7xpp9j5wjwjfxgvx-8080.app.github.dev/dashboard
+* Portainer - https://congenial-umbrella-7xpp9j5wjwjfxgvx-9000.app.github.dev/
+* Grafana - https://congenial-umbrella-7xpp9j5wjwjfxgvx-80.app.github.dev/grafana
+* Web UI - https://congenial-umbrella-7xpp9j5wjwjfxgvx-80.app.github.dev/web
+
 ---
 
 ## 🔐 Security Model
